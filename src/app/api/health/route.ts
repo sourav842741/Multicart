@@ -1,31 +1,41 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+import connectDb from "@/lib/db";
 
 export async function GET() {
   try {
+
+    await connectDb();
+
     if (mongoose.connection.readyState !== 1) {
       throw new Error("MongoDB not connected");
     }
 
-    if (!mongoose.connection.db) {
-      throw new Error("MongoDB database connection unavailable");
+    const db = mongoose.connection.db;
+
+    if (!db) {
+      throw new Error("Database unavailable");
     }
 
-    await mongoose.connection.db.admin().ping();
+    await db.admin().ping();
 
     return NextResponse.json({
       status: "ok",
       db: "connected",
       timestamp: new Date().toISOString(),
     });
+
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+
+    const message =
+      error instanceof Error ? error.message : String(error);
+
     return NextResponse.json(
       {
         status: "error",
         error: message,
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
