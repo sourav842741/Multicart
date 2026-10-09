@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     // ✅ SUCCESS → MARK DELIVERED
     order.orderStatus = "delivered";
-    order.isPaid = "true"
+    order.isPaid = true;
     order.deliveryDate = new Date(); // ⭐ DELIVERY DATE SET
     order.deliveryOtp = undefined;
     order.otpExpiresAt = undefined;

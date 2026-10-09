@@ -15,6 +15,7 @@ export interface IProduct {
   image2: string;
   image3: string;
   image4: string;
+  images?: string[];
 
   category: string;
 
@@ -73,6 +74,7 @@ const productSchema = new mongoose.Schema<IProduct>(
     image2: { type: String, required: true },
     image3: { type: String, required: true },
     image4: { type: String, required: true },
+    images: { type: [String], default: [] },
 
     category: { type: String, required: true },
 

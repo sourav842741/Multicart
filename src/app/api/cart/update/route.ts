@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { productId, quantity } = await req.json();
+    const { productId, quantity, size } = await req.json();
 
     if (!productId || quantity < 1) {
       return NextResponse.json(
@@ -35,10 +35,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const item = user.cart.find(
-      (i: any) =>
-        i.product.toString() === productId.toString()
-    );
+    const item = user.cart.find((i: any) => {
+      const matchProduct = i.product.toString() === productId.toString();
+      if (!matchProduct) return false;
+      if (size !== undefined && size !== null) {
+        return i.size === size;
+      }
+      return true;
+    });
 
     if (!item) {
       return NextResponse.json(

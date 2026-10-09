@@ -50,15 +50,26 @@ export default function VendorDashboardPage() {
   }
 
   /* ================= DATA ================= */
-  const vendorOrders = allOrderData.filter(
-    (o: any) =>
-      String(o.productVendor?._id || o.productVendor) ===
-      String(userData._id)
-  );
+  const isVendorMatch = (vendorRef: any) => {
+    if (!userData) return false;
+    const vendorId = String(vendorRef?._id || vendorRef || "");
+    const currentId = String(userData._id || "");
+    if (vendorId && currentId && vendorId === currentId) return true;
+    if (vendorRef?.email && userData.email && vendorRef.email.toLowerCase() === userData.email.toLowerCase()) return true;
+    if (vendorRef?.shopName && userData.shopName && vendorRef.shopName.trim().toLowerCase() === userData.shopName.trim().toLowerCase()) return true;
+    return false;
+  };
 
-  const vendorProducts = allProductsData.filter(
-    (p: any) =>
-      String(p.vendor?._id || p.vendor) === String(userData._id)
+  const vendorOrders = allOrderData.filter((o: any) => {
+    if (isVendorMatch(o.productVendor)) return true;
+    if (Array.isArray(o.products)) {
+      return o.products.some((p: any) => isVendorMatch(p.product?.vendor));
+    }
+    return false;
+  });
+
+  const vendorProducts = allProductsData.filter((p: any) =>
+    isVendorMatch(p.vendor)
   );
 
   const validOrders = vendorOrders.filter(

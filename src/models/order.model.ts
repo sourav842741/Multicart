@@ -5,6 +5,7 @@ export interface IOrder extends Document {
     product: Types.ObjectId;
     quantity: number;
     price: number;
+    size?: string;
   }[];
 
   buyer: Types.ObjectId;
@@ -67,6 +68,9 @@ const OrderSchema = new Schema<IOrder>(
         price: {
           type: Number,
           required: true,
+        },
+        size: {
+          type: String,
         },
       },
     ],

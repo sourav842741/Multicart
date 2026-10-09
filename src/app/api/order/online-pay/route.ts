@@ -6,7 +6,7 @@ import Product from "@/models/product.model";
 import User from "@/models/user.model";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "dummy_key");
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     const {
       productId,
       quantity,
+      size,
       address,
       amount,
       deliveryCharge,
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
           product: product._id,
           quantity,
           price: product.price,
+          size: size || cartItem.size || undefined,
         },
       ],
 
@@ -143,6 +145,27 @@ export async function POST(req: NextRequest) {
 
     user.orders = user.orders || [];
     user.orders.push(order._id);
+
+    // ✅ AUTO-SAVE ADDRESS TO PROFILE (FLIPKART STYLE)
+    if (!user.addresses) user.addresses = [];
+    const addressExists = user.addresses.some(
+      (a: any) =>
+        a.address === address.address &&
+        a.pincode === address.pincode &&
+        a.phone === address.phone
+    );
+    if (!addressExists) {
+      user.addresses.push({
+        name: address.name,
+        phone: address.phone,
+        address: address.address,
+        city: address.city,
+        pincode: address.pincode,
+        type: "Home",
+        isDefault: user.addresses.length === 0,
+      });
+    }
+
     await user.save();
 
     // ✅ STRIPE SESSION

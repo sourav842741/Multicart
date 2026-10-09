@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { productId } = await req.json();
+    const { productId, size } = await req.json();
 
     if (!productId) {
       return NextResponse.json(
@@ -30,9 +30,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    user.cart = user.cart.filter(
-      (item: any) => item.product.toString() !== productId.toString()
-    );
+    user.cart = user.cart.filter((item: any) => {
+      const matchProduct = item.product.toString() === productId.toString();
+      if (!matchProduct) return true;
+      if (size !== undefined && size !== null) {
+        return item.size !== size;
+      }
+      return false;
+    });
 
     await user.save();
 

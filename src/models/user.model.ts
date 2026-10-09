@@ -1,7 +1,19 @@
 import mongoose from "mongoose";
 import { IProduct } from "./product.model";
 
- export interface IUser {
+export interface IAddress {
+  _id?: mongoose.Types.ObjectId;
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+  state?: string;
+  pincode: string;
+  type?: "Home" | "Work" | "Other";
+  isDefault?: boolean;
+}
+
+export interface IUser {
   _id?: mongoose.Types.ObjectId;
 
   name: string;
@@ -11,6 +23,9 @@ import { IProduct } from "./product.model";
 
   role: "user" | "vendor" | "admin";
   phone?: string;
+
+  // Saved Delivery Addresses
+  addresses?: IAddress[];
 
   /* -------------------- VENDOR FIELDS -------------------- */
   shopName?: string;
@@ -32,7 +47,9 @@ import { IProduct } from "./product.model";
   cart?: {
     product: mongoose.Types.ObjectId;
     quantity: number;
+    size?: string;
   }[];
+
 
    chats?: {
     with: mongoose.Types.ObjectId; // kis user ke saath chat
@@ -66,6 +83,24 @@ const userSchema = new mongoose.Schema<IUser>(
       enum: ["user", "vendor", "admin"],
       default: "user",
     },
+
+    /* ---------------- SAVED ADDRESSES ---------------- */
+    addresses: [
+      {
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        address: { type: String, required: true },
+        city: { type: String, required: true },
+        state: { type: String },
+        pincode: { type: String, required: true },
+        type: {
+          type: String,
+          enum: ["Home", "Work", "Other"],
+          default: "Home",
+        },
+        isDefault: { type: Boolean, default: false },
+      },
+    ],
 
     /* ---------------- VENDOR INFO ---------------- */
     shopName: { type: String },
@@ -108,8 +143,10 @@ const userSchema = new mongoose.Schema<IUser>(
           ref: "Product",
         },
         quantity: { type: Number, default: 1 },
+        size: { type: String },
       },
     ],
+
 
       chats: [
       {

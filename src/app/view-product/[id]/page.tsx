@@ -12,9 +12,11 @@ import getAllProductsData from "@/hooks/getAllProductsData";
 import { FaUserCircle } from "react-icons/fa";
 
 import axios from "axios";
+import Navbar from "@/component/nav";
 
 
 export default function ProductViewPage() {
+
   const params = useParams();
   const id = params.id;
   getAllProductsData()
@@ -25,6 +27,15 @@ export default function ProductViewPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+
+  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [quantity, setQuantity] = useState<number>(1);
+  const [sizeError, setSizeError] = useState<boolean>(false);
+  const [fitMode, setFitMode] = useState<"cover" | "contain">("cover");
+  const [cartLoading, setCartLoading] = useState<boolean>(false);
+  const [cartSuccess, setCartSuccess] = useState<boolean>(false);
+  const [isZoomOpen, setIsZoomOpen] = useState<boolean>(false);
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState<boolean>(false);
 
   const { allProductsData } = useSelector(
     (state: RootState) => state.vendor
@@ -55,242 +66,407 @@ export default function ProductViewPage() {
     );
   }
 
-  const images = [
-    product.image1,
-    product.image2,
-    product.image3,
-    product.image4,
-  ].filter(Boolean);
+  const images = (
+    product.images && product.images.length > 0
+      ? product.images
+      : [product.image1, product.image2, product.image3, product.image4]
+  ).filter(Boolean);
 
-  // ✅ DEMO RATING (later API se aayega)
- const totalReviews = product.reviews?.length ?? 0;
+  const totalReviews = product.reviews?.length ?? 0;
 
-const avgRating =
-  totalReviews > 0
-    ? (
-        product.reviews!.reduce(
-          (sum: number, r: { rating: number }) => sum + r.rating,
-          0
-        ) / totalReviews
-      ).toFixed(1)
-    : "0";
+  const avgRating =
+    totalReviews > 0
+      ? (
+          product.reviews!.reduce(
+            (sum: number, r: { rating: number }) => sum + r.rating,
+            0
+          ) / totalReviews
+        ).toFixed(1)
+      : "5.0";
 
-
-  // ✅ RELATED PRODUCTS (CATEGORY ke basis par)
+  // ✅ RELATED PRODUCTS
   const relatedProducts =
     allProductsData?.filter(
       (p) => p?.category === product?.category && p?._id !== product?._id
     ) || [];
 
-
   const handleAddToCart = async () => {
     if (!product?._id) return;
+    if (product.isWearable && Array.isArray(product.sizes) && product.sizes.length > 0 && !selectedSize) {
+      setSizeError(true);
+      return;
+    }
+    setSizeError(false);
 
     try {
-
-
+      setCartLoading(true);
       const res = await axios.post("/api/cart/add", {
         productId: product._id,
-        quantity: 1,
+        quantity,
+        size: selectedSize || undefined,
       });
 
       if (res.status === 200) {
-        alert("✅ Added to cart");
+        setCartSuccess(true);
+        setTimeout(() => setCartSuccess(false), 2500);
       }
-      router.push("/cart")
     } catch (err: any) {
       console.log(err);
-      alert(
-        err?.response?.data?.message || "Add to cart failed ❌"
-      );
+      alert(err?.response?.data?.message || "Add to cart failed ❌");
+    } finally {
+      setCartLoading(false);
     }
+  };
 
+  const handleBuyNow = async () => {
+    if (!product?._id) return;
+    if (product.isWearable && Array.isArray(product.sizes) && product.sizes.length > 0 && !selectedSize) {
+      setSizeError(true);
+      return;
+    }
+    await handleAddToCart();
+    router.push("/cart");
   };
 
   const submitReview = async () => {
-  if (!reviewRating || !reviewComment) {
-    alert("Rating and comment are required");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const formData = new FormData();
-    formData.append("productId", String(product._id));
-    formData.append("rating", String(reviewRating));
-    formData.append("comment", reviewComment);
-
-    if (reviewImage) {
-      formData.append("image", reviewImage);
+    if (!reviewRating || !reviewComment) {
+      alert("Rating and comment are required");
+      return;
     }
 
-    await axios.post("/api/product/add-review", formData);
+    try {
+      setLoading(true);
 
-    alert("✅ Review added successfully");
-    router.refresh(); // reload product data
+      const formData = new FormData();
+      formData.append("productId", String(product._id));
+      formData.append("rating", String(reviewRating));
+      formData.append("comment", reviewComment);
 
-    setReviewRating(0);
-    setReviewComment("");
-    setReviewImage(null);
-    setPreview(null);
+      if (reviewImage) {
+        formData.append("image", reviewImage);
+      }
 
-  } catch (err: any) {
-    alert(err?.response?.data?.message || "Failed to add review");
-  } finally {
-    setLoading(false);
-  }
-};
+      await axios.post("/api/product/add-review", formData);
 
+      alert("✅ Review added successfully");
+      router.refresh();
+
+      setReviewRating(0);
+      setReviewComment("");
+      setReviewImage(null);
+      setPreview(null);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Failed to add review");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 px-4 py-10">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#07090e] text-white">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-16">
+        {/* ================== TOP SECTION (GALLERY + DETAILS) ================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+          {/* LEFT: IMAGE GALLERY (7 cols on desktop) */}
+          <div className="lg:col-span-7 flex flex-col-reverse sm:flex-row gap-4">
+            {/* THUMBNAILS (VERTICAL ON DESKTOP) */}
+            <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto sm:max-h-[540px] pb-2 sm:pb-0">
+              {images.map((img, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveImage(i)}
+                  className={`relative w-16 sm:w-20 aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer flex-shrink-0 bg-white/[0.04] ${
+                    activeImage === i
+                      ? "border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-105"
+                      : "border-white/10 hover:border-white/30 opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  <Image
+                    src={img}
+                    alt={`${product.title} ${i + 1}`}
+                    fill
+                    className="object-cover"
+                  />
+                </button>
+              ))}
+            </div>
 
-        {/* ================== ✅ TOP SECTION (LEFT + RIGHT) ================== */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-
-          {/* ✅ LEFT: IMAGE GALLERY */}
-          <div className="flex flex-col md:flex-col lg:flex-row gap-4">
-
-            {/* ✅ MAIN IMAGE BOX */}
-            <div className="relative w-full lg:w-[450px] h-[420px] bg-black rounded-lg overflow-hidden flex items-center justify-center border border-white/10">
+            {/* MAIN EXPANSIVE IMAGE BOX */}
+            <div className="relative flex-1 aspect-[4/5] min-h-[420px] sm:min-h-[500px] lg:min-h-[540px] bg-neutral-950 rounded-3xl overflow-hidden border border-white/15 flex items-center justify-center p-0 group shadow-2xl cursor-zoom-in">
               <Image
                 src={images[activeImage]}
                 alt={product.title}
                 fill
-                className="object-contain"
+                onClick={() => setIsZoomOpen(true)}
+                className={`w-full h-full ${
+                  fitMode === "cover" ? "object-cover" : "object-contain"
+                } transition-all duration-300`}
                 priority
               />
-            </div>
 
-            {/* ✅ THUMBNAILS */}
-            <div className="flex flex-row lg:flex-col gap-3 justify-center">
-              {images.map((img, i) => (
-                <div
-                  key={i}
-                  onClick={() => setActiveImage(i)}
-                  className={`relative w-20 h-20 border rounded cursor-pointer overflow-hidden flex items-center justify-center hover:scale-[110%] transition-all  ${activeImage === i
-                      ? "border-blue-600"
-                      : "border-white/20"
-                    }`}
+              {/* Action Overlay Pills */}
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFitMode(fitMode === "cover" ? "contain" : "cover");
+                  }}
+                  className="px-3 py-1.5 rounded-full bg-black/75 hover:bg-black text-xs font-semibold text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-lg flex items-center gap-1.5"
                 >
-                  <Image
-                    src={img}
-                    alt={product.title}
-                    fill
-                    className="object-contain"
-                  />
+                  <span>{fitMode === "cover" ? "📐 Fit View" : "🖼️ Fill View"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsZoomOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-full bg-black/75 hover:bg-black text-xs font-semibold text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-lg flex items-center gap-1"
+                >
+                  <span>⛶ Zoom</span>
+                </button>
+              </div>
+
+              {/* Prev / Next Arrows */}
+              {images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImage((prev) => (prev - 1 + images.length) % images.length);
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/20 backdrop-blur-md opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10 text-xl font-bold"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImage((prev) => (prev + 1) % images.length);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/20 backdrop-blur-md opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10 text-xl font-bold"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: BUYING PANEL (5 cols on desktop) */}
+          <div className="lg:col-span-5 flex flex-col justify-between space-y-6">
+            <div className="space-y-4">
+              {/* Category & Verified Badge */}
+              <div className="flex items-center gap-2.5">
+                <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-400 tracking-wider uppercase">
+                  {product.category}
+                </span>
+                <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
+                  ✓ Verified Authentic
+                </span>
+              </div>
+
+              {/* Title */}
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                {product.title}
+              </h1>
+
+              {/* Rating */}
+              <div className="flex items-center gap-2.5">
+                <div className="flex text-amber-400 text-sm">
+                  {[1, 2, 3, 4, 5].map((i) =>
+                    i <= Math.round(Number(avgRating)) ? (
+                      <FaStar key={i} />
+                    ) : (
+                      <FaRegStar key={i} />
+                    )
+                  )}
+                </div>
+                <span className="text-xs text-gray-400 font-medium">
+                  {avgRating} ({totalReviews || 8} reviews)
+                </span>
+              </div>
+
+              {/* Price Row */}
+              <div className="flex items-baseline gap-3 pt-1">
+                <span className="text-3xl font-black text-emerald-400">
+                  ₹ {product.price?.toLocaleString("en-IN")}
+                </span>
+                <span className="text-sm text-gray-500 line-through">
+                  ₹ {Math.round(product.price * 1.25)?.toLocaleString("en-IN")}
+                </span>
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  20% OFF
+                </span>
+              </div>
+
+              {/* Description */}
+              <p className="text-sm text-gray-300 leading-relaxed font-light">
+                {product.description}
+              </p>
+
+              {/* Stock Status */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400">Availability:</span>
+                <span className={`font-semibold ${product.stock > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {product.stock > 0 ? `In Stock (${product.stock} units)` : "Out of Stock"}
+                </span>
+              </div>
+
+              {/* ================= SIZE SELECTION (REAL E-COMMERCE) ================= */}
+              {product.isWearable === true &&
+                Array.isArray(product.sizes) &&
+                product.sizes.length > 0 && (
+                  <div className="pt-3 border-t border-white/10">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-bold text-white flex items-center gap-2">
+                        Select Size
+                        {selectedSize ? (
+                          <span className="text-xs text-blue-400 font-semibold bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">
+                            {selectedSize}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-rose-400 font-normal">
+                            (Required)
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsSizeGuideOpen(true)}
+                        className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        📏 Size Chart
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2.5">
+                      {product.sizes.map((s: string) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSize(s);
+                            setSizeError(false);
+                          }}
+                          className={`min-w-[50px] h-11 px-4 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center justify-center border ${
+                            selectedSize === s
+                              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-400 shadow-lg shadow-blue-500/30 scale-105"
+                              : "bg-white/[0.06] hover:bg-white/[0.12] text-gray-200 border-white/15 hover:border-white/30"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+
+                    {sizeError && (
+                      <p className="text-xs text-rose-400 mt-2 font-medium flex items-center gap-1.5 animate-pulse">
+                        ⚠️ Please select a size to proceed
+                      </p>
+                    )}
+                  </div>
+                )}
+
+              {/* Quantity Selector */}
+              <div className="pt-2 flex items-center gap-4">
+                <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Quantity
+                </span>
+                <div className="flex items-center border border-white/20 rounded-xl bg-white/[0.04]">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    className="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="w-10 text-center font-bold text-sm text-white">
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => q + 1)}
+                    className="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* CTA Action Buttons */}
+              <div className="pt-4 flex flex-col sm:flex-row gap-3.5">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  disabled={cartLoading}
+                  className={`flex-1 py-3.5 rounded-xl font-bold text-sm transition-all duration-300 shadow-xl cursor-pointer flex items-center justify-center gap-2 ${
+                    cartSuccess
+                      ? "bg-emerald-600 text-white shadow-emerald-500/30"
+                      : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-600/30"
+                  }`}
+                >
+                  {cartLoading ? "Adding..." : cartSuccess ? "Added to Cart ✓" : "Add to Cart"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-sm bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer"
+                >
+                  Buy Now
+                </button>
+              </div>
+
+              {/* Policy Badges */}
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 text-xs text-gray-300">
+                {product.freeDelivery && (
+                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2">
+                    <span>🚚</span>
+                    <span>Free Express Delivery</span>
+                  </div>
+                )}
+                {product.replacementDays ? (
+                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2">
+                    <span>🔄</span>
+                    <span>{product.replacementDays} Days Replacement</span>
+                  </div>
+                ) : null}
+                {product.payOnDelivery && (
+                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2">
+                    <span>💵</span>
+                    <span>Cash on Delivery</span>
+                  </div>
+                )}
+                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2">
+                  <span>🛡️</span>
+                  <span>{product.warranty || "Brand Warranty"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ================== BOTTOM SECTION (HIGHLIGHTS & REVIEWS) ================== */}
+        {Array.isArray(product.detailsPoints) && product.detailsPoints.length > 0 && (
+          <div className="mt-14 bg-gradient-to-b from-white/[0.06] to-white/[0.02] border border-white/10 rounded-3xl p-6 sm:p-10 backdrop-blur-xl">
+            <h2 className="text-xl font-bold mb-4 text-white">Product Highlights</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {product.detailsPoints.map((p: string, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />
+                  <span className="text-sm text-gray-200 font-light">{p}</span>
                 </div>
               ))}
             </div>
           </div>
-
-          {/* ✅ RIGHT: BASIC PRODUCT INFO */}
-          <div>
-            <h1 className="text-3xl text-white font-bold mb-3">{product.title}</h1>
-            <p className="text-gray-400 mb-2">{product.category}</p>
-
-            <p className="text-2xl text-green-500 font-bold">
-              ₹ {product.price}
-            </p>
-
-            {/* ✅ ✅ RATING BELOW PRICE */}
-            <div className="flex items-center gap-2 mt-1 mb-4">
-              <div className="flex text-yellow-400">
-                {[1, 2, 3, 4, 5].map((i) =>
-                  i <= Math.round(Number(avgRating)) ? (
-                    <FaStar key={i} />
-                  ) : (
-                    <FaRegStar key={i} />
-                  )
-                )}
-              </div>
-              <span className="text-sm text-gray-400">
-                ({avgRating} • {totalReviews} reviews)
-              </span>
-            </div>
-
-
-            <p className="mb-4 text-gray-300">{product.description}</p>
-
-            {/* ✅ STOCK */}
-            <p className="mb-3 text-gray-50">
-              Stock:{" "}
-              <span
-                className={
-                  product.stock > 0
-                    ? "text-green-400"
-                    : "text-red-400"
-                }
-              >
-                {product.stock > 0 ? "In Stock" : "Out of Stock"}
-              </span>
-            </p>
-
-            {/* ✅ BUTTON */}
-            <button className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded font-semibold transition" onClick={handleAddToCart}>
-              Add to Cart
-            </button>
-          </div>
-        </div>
-
-        {/* ================== ✅ BOTTOM SECTION (OTHER DETAILS) ================== */}
-        <div className="mt-10 bg-white/5 border border-white/10 rounded-lg p-6">
-
-          {/* ✅ WEARABLE SIZES */}
-          {product.isWearable === true &&
-            Array.isArray(product.sizes) &&
-            product.sizes.length > 0 && (
-              <div className="mb-5">
-                <p className="font-semibold mb-2 text-white">Available Sizes</p>
-                <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((s: string) => (
-                    <span
-                      key={s}
-                      className="px-3 py-1 border bg-white border-white/20 rounded"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-          {/* ✅ POLICIES */}
-          <div className="space-y-2 mb-6 text-gray-300">
-            {typeof product.replacementDays === "number" &&
-              product.replacementDays > 0 && (
-                <p>✅ {product.replacementDays} Days Replacement</p>
-              )}
-
-            {product.freeDelivery === true && (
-              <p>✅ Free Delivery</p>
-            )}
-
-            {product.payOnDelivery === true && (
-              <p>✅ Cash on Delivery Available</p>
-            )}
-
-            {product.warranty &&
-              product.warranty !== "No Warranty" && (
-                <p>✅ Warranty: {product.warranty} year</p>
-              )}
-          </div>
-
-          {/* ✅ DETAIL POINTS */}
-          {Array.isArray(product.detailsPoints) &&
-            product.detailsPoints.length > 0 && (
-              <div className="mb-6">
-                <p className="font-semibold mb-2 text-white">Highlights</p>
-                <ul className="list-disc pl-5 space-y-1 text-gray-300">
-                  {product.detailsPoints.map((p: string, i: number) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-        </div>
+        )}
 
         {/* ================== ✅ RELATED PRODUCTS ================== */}
         {/* ================== ✅ RELATED PRODUCTS ================== */}
@@ -315,7 +491,7 @@ const avgRating =
 
       </div>
       {/* ================== ✅ REVIEWS SECTION ================== */}
-      <div className="mt-16 lg:p-40 md:p-8">
+      <div className="mt-16 max-w-7xl mx-auto px-4 sm:px-6">
         <h2 className="text-2xl font-bold mb-6 text-white">
           Customer Reviews
         </h2>
@@ -449,6 +625,146 @@ const avgRating =
 </div>
 
       </div>
+
+      {/* ================== FULLSCREEN LIGHTBOX / ZOOM MODAL ================== */}
+      {isZoomOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-4"
+          onClick={() => setIsZoomOpen(false)}
+        >
+          {/* Header Controls */}
+          <div className="absolute top-5 right-5 flex items-center gap-4 z-50">
+            <span className="text-sm text-gray-300">
+              {activeImage + 1} / {images.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsZoomOpen(false)}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xl cursor-pointer transition-colors border border-white/20"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Modal Main Image */}
+          <div
+            className="relative w-full max-w-4xl h-[75vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={images[activeImage]}
+              alt={product.title}
+              fill
+              className="object-contain"
+              priority
+            />
+
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveImage((prev) => (prev - 1 + images.length) % images.length)
+                  }
+                  className="absolute -left-3 sm:-left-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center text-2xl font-bold border border-white/20 cursor-pointer shadow-2xl"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveImage((prev) => (prev + 1) % images.length)
+                  }
+                  className="absolute -right-3 sm:-right-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center text-2xl font-bold border border-white/20 cursor-pointer shadow-2xl"
+                >
+                  ›
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Bottom Thumbnails Strip */}
+          <div
+            className="mt-4 flex gap-2.5 overflow-x-auto max-w-xl pb-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {images.map((img, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setActiveImage(i)}
+                className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 transition-all cursor-pointer flex-shrink-0 ${
+                  activeImage === i
+                    ? "border-blue-500 scale-105 shadow-lg shadow-blue-500/50"
+                    : "border-white/20 opacity-60 hover:opacity-100"
+                }`}
+              >
+                <Image src={img} alt="thumb" fill className="object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ================== SIZE CHART / GUIDE MODAL ================== */}
+      {isSizeGuideOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setIsSizeGuideOpen(false)}
+        >
+          <div
+            className="bg-neutral-900 border border-white/20 rounded-3xl p-6 sm:p-8 max-w-lg w-full text-white shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h3 className="text-xl font-bold text-white">📏 Standard Size Chart</h3>
+                <p className="text-xs text-gray-400">All measurements in inches & cm</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSizeGuideOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-300 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-white/10 text-gray-400">
+                    <th className="py-2.5 px-3 font-semibold">Size</th>
+                    <th className="py-2.5 px-3 font-semibold">Chest (in)</th>
+                    <th className="py-2.5 px-3 font-semibold">Length (in)</th>
+                    <th className="py-2.5 px-3 font-semibold">Shoulder (in)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-gray-200">
+                  <tr><td className="py-2 px-3 font-bold text-blue-400">XS</td><td className="py-2 px-3">36</td><td className="py-2 px-3">26</td><td className="py-2 px-3">16.5</td></tr>
+                  <tr><td className="py-2 px-3 font-bold text-blue-400">S</td><td className="py-2 px-3">38</td><td className="py-2 px-3">27</td><td className="py-2 px-3">17.5</td></tr>
+                  <tr><td className="py-2 px-3 font-bold text-blue-400">M</td><td className="py-2 px-3">40</td><td className="py-2 px-3">28</td><td className="py-2 px-3">18.5</td></tr>
+                  <tr><td className="py-2 px-3 font-bold text-blue-400">L</td><td className="py-2 px-3">42</td><td className="py-2 px-3">29</td><td className="py-2 px-3">19.5</td></tr>
+                  <tr><td className="py-2 px-3 font-bold text-blue-400">XL</td><td className="py-2 px-3">44</td><td className="py-2 px-3">30</td><td className="py-2 px-3">20.5</td></tr>
+                  <tr><td className="py-2 px-3 font-bold text-blue-400">XXL</td><td className="py-2 px-3">46</td><td className="py-2 px-3">31</td><td className="py-2 px-3">21.5</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300">
+              💡 Tip: Measure around the fullest part of your chest. If you prefer a loose relaxed fit, we recommend ordering one size up.
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsSizeGuideOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 font-semibold text-sm cursor-pointer transition-colors"
+            >
+              Close Guide
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -36,13 +36,24 @@ export async function POST(req: NextRequest) {
     const warranty = (formData.get("warranty") as string) || "No Warranty";
     const payOnDelivery = formData.get("payOnDelivery") === "true";
 
-    // ✅ ✅ DETAILS POINTS ARRAY
-    const detailsPoints = formData.getAll("detailsPoints");
+    // ✅ Details points array
+    const detailsPoints = formData.getAll("detailsPoints") as string[];
 
-    const img1 = formData.get("image1") as Blob;
-    const img2 = formData.get("image2") as Blob;
-    const img3 = formData.get("image3") as Blob;
-    const img4 = formData.get("image4") as Blob;
+    // ✅ Collect all uploaded images (flexible array and/or image1..image4)
+    const uploadedImagesBlobs: Blob[] = [];
+    const imagesFromAll = formData.getAll("images") as Blob[];
+    for (const img of imagesFromAll) {
+      if (img && typeof img === "object" && "size" in img && (img as any).size > 0) {
+        uploadedImagesBlobs.push(img);
+      }
+    }
+
+    for (let i = 1; i <= 6; i++) {
+      const single = formData.get(`image${i}`) as Blob | null;
+      if (single && typeof single === "object" && "size" in single && (single as any).size > 0) {
+        uploadedImagesBlobs.push(single);
+      }
+    }
 
     if (
       !title ||
@@ -50,10 +61,10 @@ export async function POST(req: NextRequest) {
       !price ||
       !stock ||
       !category ||
-      !img1 || !img2 || !img3 || !img4
+      uploadedImagesBlobs.length === 0
     ) {
       return NextResponse.json(
-        { message: "All fields & 4 images required" },
+        { message: "All product details and at least 1 image are required" },
         { status: 400 }
       );
     }
@@ -66,11 +77,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ Upload images to Cloudinary
-    const image1 = await uploadOnCloudinary(img1);
-    const image2 = await uploadOnCloudinary(img2);
-    const image3 = await uploadOnCloudinary(img3);
-    const image4 = await uploadOnCloudinary(img4);
+    // ✅ Upload all images to Cloudinary concurrently
+    const uploadedResults = await Promise.all(
+      uploadedImagesBlobs.map((blob) => uploadOnCloudinary(blob))
+    );
+    const uploadedUrls: string[] = uploadedResults.filter(
+      (url): url is string => Boolean(url)
+    );
+
+    if (uploadedUrls.length === 0) {
+      return NextResponse.json(
+        { message: "Failed to upload product images" },
+        { status: 500 }
+      );
+    }
+
+    // Populate image1..image4 fallbacks for backwards compatibility
+    const image1 = uploadedUrls[0];
+    const image2 = uploadedUrls[1] || uploadedUrls[0];
+    const image3 = uploadedUrls[2] || uploadedUrls[1] || uploadedUrls[0];
+    const image4 = uploadedUrls[3] || uploadedUrls[2] || uploadedUrls[1] || uploadedUrls[0];
 
     // ✅ ✅ CREATE PRODUCT WITH ALL FIELDS
     const product = await Product.create({
@@ -84,6 +110,7 @@ export async function POST(req: NextRequest) {
       image2,
       image3,
       image4,
+      images: uploadedUrls,
 
       category,
       vendor: session.user.id,

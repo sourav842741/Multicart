@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { productId, quantity = 1 } = await req.json();
+    const { productId, quantity = 1, size = "" } = await req.json();
 
     if (!productId) {
       return NextResponse.json({ message: "Product ID required" }, { status: 400 });
@@ -40,9 +40,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Product not available" }, { status: 400 });
     }
 
-    // ✅ ✅ FIXED EXISTING ITEM CHECK (NO TS ERROR)
+    // ✅ MATCH PRODUCT AND SIZE
     const existingItem = user.cart.find(
-      (item: any) => item.product?.toString() === productId.toString()
+      (item: any) =>
+        item.product?.toString() === productId.toString() &&
+        (size ? item.size === size : true)
     );
 
     if (existingItem) {
@@ -51,8 +53,10 @@ export async function POST(req: NextRequest) {
       user.cart.push({
         product: product._id,
         quantity,
+        size: size || undefined,
       });
     }
+
 
     await user.save();
 

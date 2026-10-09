@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     const {
       productId,
       quantity,
+      size,
       address,
       amount,
       deliveryCharge,
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
           product: product._id,
           quantity,
           price: product.price,
+          size: size || cartItem.size || undefined,
         },
       ],
 
@@ -146,9 +148,28 @@ export async function POST(req: NextRequest) {
       (item: any) => item.product.toString() !== productId
     );
 
-    // ✅ PUSH ORDER ID
+    // ✅ PUSH ORDER ID & AUTO-SAVE ADDRESS TO PROFILE (FLIPKART STYLE)
     user.orders = user.orders || [];
     user.orders.push(order._id);
+
+    if (!user.addresses) user.addresses = [];
+    const addressExists = user.addresses.some(
+      (a: any) =>
+        a.address === address.address &&
+        a.pincode === address.pincode &&
+        a.phone === address.phone
+    );
+    if (!addressExists) {
+      user.addresses.push({
+        name: address.name,
+        phone: address.phone,
+        address: address.address,
+        city: address.city,
+        pincode: address.pincode,
+        type: "Home",
+        isDefault: user.addresses.length === 0,
+      });
+    }
 
     await user.save();
 

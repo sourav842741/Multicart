@@ -71,21 +71,48 @@ export async function PUT(req: NextRequest) {
     // ✅ Details
     const detailsPoints = formData.getAll("detailsPoints");
 
-    // ✅ Images (optional)
+    // ✅ Images (support multi-image upload or individual slots)
+    const newImagesBlobs: Blob[] = [];
+    const imagesFromAll = formData.getAll("images") as Blob[];
+    for (const img of imagesFromAll) {
+      if (img && typeof img === "object" && "size" in img && (img as any).size > 0) {
+        newImagesBlobs.push(img);
+      }
+    }
+
+    let productImages: string[] = product.images && product.images.length > 0 
+      ? [...product.images] 
+      : [product.image1, product.image2, product.image3, product.image4].filter(Boolean);
+
+    if (newImagesBlobs.length > 0) {
+      const uploadedResults = await Promise.all(
+        newImagesBlobs.map((blob) => uploadOnCloudinary(blob))
+      );
+      const validUrls = uploadedResults.filter(
+        (url): url is string => Boolean(url)
+      );
+      if (validUrls.length > 0) {
+        productImages = validUrls;
+      }
+    }
+
     const img1 = formData.get("image1") as Blob | null;
     const img2 = formData.get("image2") as Blob | null;
     const img3 = formData.get("image3") as Blob | null;
     const img4 = formData.get("image4") as Blob | null;
 
-    let image1 = product.image1;
-    let image2 = product.image2;
-    let image3 = product.image3;
-    let image4 = product.image4;
+    let image1 = productImages[0] || product.image1;
+    let image2 = productImages[1] || product.image2 || image1;
+    let image3 = productImages[2] || product.image3 || image2;
+    let image4 = productImages[3] || product.image4 || image3;
 
-    if (img1) image1 = await uploadOnCloudinary(img1);
-    if (img2) image2 = await uploadOnCloudinary(img2);
-    if (img3) image3 = await uploadOnCloudinary(img3);
-    if (img4) image4 = await uploadOnCloudinary(img4);
+    if (img1 && (img1 as any).size > 0) image1 = await uploadOnCloudinary(img1);
+    if (img2 && (img2 as any).size > 0) image2 = await uploadOnCloudinary(img2);
+    if (img3 && (img3 as any).size > 0) image3 = await uploadOnCloudinary(img3);
+    if (img4 && (img4 as any).size > 0) image4 = await uploadOnCloudinary(img4);
+
+    // Sync productImages
+    productImages = [image1, image2, image3, image4].filter(Boolean);
 
     // ✅ Wearable validation
     if (isWearable && sizes.length === 0) {
@@ -109,6 +136,7 @@ export async function PUT(req: NextRequest) {
         image2,
         image3,
         image4,
+        images: productImages,
 
         category,
 

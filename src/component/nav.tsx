@@ -22,6 +22,8 @@ import logo from "@/assets/logo.jpg";
 import { signOut } from "next-auth/react";
 import mongoose from "mongoose";
 import axios from "axios";
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
 
 
 interface IUser {
@@ -60,7 +62,10 @@ interface IUser {
   createdAt?: Date;
   updatedAt?: Date;
 }
-export default function Navbar({ user }: { user: IUser }) {
+export default function Navbar({ user }: { user?: IUser | null }) {
+  const reduxUser = useSelector((state: RootState) => state.user.userData);
+  const activeUser = user || reduxUser;
+
   const [openMenu, setOpenMenu] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
@@ -85,15 +90,15 @@ const fetchCartCount = async () => {
 };
 
 useEffect(() => {
-  if (user?.role === "user") {
+  if (activeUser?.role === "user") {
     fetchCartCount();
   }
-}, [user]);
+}, [activeUser]);
 
 
   return (
-    <nav className="fixed top-0 left-0 w-full bg-black text-white z-50 shadow-lg">
-      <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
+    <nav className="fixed top-0 left-0 w-full bg-black/90 backdrop-blur-md border-b border-white/10 text-white z-50 shadow-lg">
+      <div className="max-w-7xl mx-auto px-6 py-3.5 flex justify-between items-center">
 
         {/* Logo */}
         <div
@@ -103,11 +108,11 @@ useEffect(() => {
           <motion.div whileHover={{ rotate: 10, scale: 1.1 }}>
             <Image src={logo} alt="Logo" width={40} height={40} className="rounded-full" />
           </motion.div>
-          <span className="text-xl font-semibold hidden sm:inline">MultiCart</span>
+          <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-gray-200 to-blue-400 bg-clip-text text-transparent hidden sm:inline">MultiCart</span>
         </div>
 
         {/* Desktop Links */}
-        {user.role == "user" && <div className="hidden md:flex gap-8">
+        {(!activeUser || activeUser.role == "user") && <div className="hidden md:flex gap-8 text-sm font-medium">
           <NavItem label="Home" path="/" router={router} />
           <NavItem label="Categories" path="/category" router={router} />
           <NavItem label="Shop" path="/shop" router={router} />
@@ -116,15 +121,15 @@ useEffect(() => {
 
         {/* Desktop Icons */}
         <div className="hidden md:flex items-center gap-6">
-          {user?.role === "user" && <IconBtn Icon={AiOutlineSearch} onClick={() => router.push("/category")}/>}
+          {(!activeUser || activeUser?.role === "user") && <IconBtn Icon={AiOutlineSearch} onClick={() => router.push("/category")}/>}
 
           {/* ⭐ ADDED SUPPORT ICON HERE */}
           <IconBtn Icon={AiOutlinePhone} onClick={() => router.push("/support")} />
 
           <div className="relative">
-            {user?.image ? (
+            {activeUser?.image ? (
               <Image
-                src={user.image}
+                src={activeUser.image}
                 alt="user"
                 width={40}
                 height={40}
@@ -139,21 +144,21 @@ useEffect(() => {
             </AnimatePresence>
           </div>
 
-          {user?.role === "user" && <CartBtn router={router} count={cartCount}/>}
+          {(!activeUser || activeUser?.role === "user") && <CartBtn router={router} count={cartCount}/>}
         </div>
 
         {/* Mobile Icons */}
         <div className="md:hidden flex items-center gap-4">
 
-          {(user?.role === "admin" || user?.role === "vendor") ? (
+          {(activeUser?.role === "admin" || activeUser?.role === "vendor") ? (
             <>
               {/* ⭐ MOBILE SUPPORT ICON */}
               <IconBtn Icon={AiOutlinePhone} onClick={() => router.push("/support")} />
 
               <div className="relative">
-                {user?.image ? (
+                {activeUser?.image ? (
                   <Image
-                    src={user.image}
+                    src={activeUser.image}
                     alt="user"
                     width={32}
                     height={32}
@@ -186,13 +191,15 @@ useEffect(() => {
 
       {/* Sidebar */}
       <AnimatePresence>
-        {sidebarOpen && <Sidebar close={() => setSidebarOpen(false)} router={router} user={user} />}
+        {sidebarOpen && <Sidebar close={() => setSidebarOpen(false)} router={router} user={activeUser} />}
       </AnimatePresence>
     </nav>
   );
 }
 
+
 /* ------- Components -------- */
+
 
 const NavItem = ({ label, path, router }: any) => (
   <button onClick={() => router.push(path)} className="hover:text-gray-300">
